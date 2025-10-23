@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["oxitoken", "oxitoken-macros"]
+
+[profile.bench]
+opt-level = 3
+codegen-units = 1
+lto = "fat"
+
+[workspace.lints.rust]
+unused = { level = "deny", priority = -1 }
+unsafe_code = "forbid"
+warnings = "deny"
+#missing_docs = "deny"
+# coverage is checked w/ nightly to exclude test code from coverage calculations
+# this allows building and testing on stable and msrv w/o warnings
+unexpected_cfgs = { level = "allow", check-cfg = [
+	"cfg(coverage,coverage_nightly)",
+] }
+
+
+[workspace.lints.clippy]
+all = "deny"
+pedantic = "deny"
+nursery = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+dbg_macro = "deny"
+todo = "deny"
