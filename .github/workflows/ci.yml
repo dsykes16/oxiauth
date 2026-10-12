@@ -1,0 +1,326 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+  # `warnings = "deny"` + clippy pedantic/nursery means a new rustc/clippy release can
+  # break the build, so toolchains are pinned. canary.yml tracks floating stable weekly.
+  # renovate: datasource=github-releases depName=rust-lang/rust
+  RUST_STABLE: "1.97.1"
+  # Nightly is needed for rustfmt options in oxitoken/.rustfmt.toml and for
+  # `coverage(off)`. Bump by hand (same pin as local development).
+  RUST_NIGHTLY: nightly-2025-11-21
+  # Measured floor for the library build: let-chains (stable in 1.88) are used in
+  # validation/pipeline.rs; 1.87.0 fails there. Bump by hand.
+  RUST_MSRV: "1.88.0"
+
+# Jobs fall in two groups:
+#   gating   - must pass; aggregated by `ci-ok`, which is the required status check.
+#   advisory - fail on `main` today (see the comment on each) and are not part of `ci-ok`.
+#              They run with `continue-on-error`, so a failure shows as an annotation on
+#              an otherwise green run. Remove `continue-on-error` once the cause is fixed.
+jobs:
+  # ---------------------------------------------------------------- gating
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            flags: ""
+          - name: aws-lc-rs only
+            flags: "--no-default-features --features aws-lc-rs"
+          - name: openssl only
+            flags: "--no-default-features --features openssl"
+          - name: both backends
+            flags: "--features openssl"
+          - name: no backend
+            flags: "--no-default-features"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          cache-key: test-${{ matrix.name }}
+      # --lib --tests (not --all-targets): three examples use aws-lc-rs without
+      # `required-features`, so they do not build without that backend.
+      - name: Test
+        env:
+          FLAGS: ${{ matrix.flags }}
+        run: |
+          read -ra flags <<< "$FLAGS"
+          cargo test -p oxitoken --lib --tests "${flags[@]}"
+
+  test-platforms:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            nasm: ""
+          # jsonwebtoken (dev-dependency) always builds aws-lc-sys, which needs NASM on
+          # Windows; use its prebuilt objects instead of requiring a NASM install.
+          - os: windows-latest
+            nasm: "1"
+    env:
+      AWS_LC_SYS_PREBUILT_NASM: ${{ matrix.nasm }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          cache-key: platform-${{ matrix.os }}
+      - name: Test (default features)
+        run: cargo test -p oxitoken --lib --tests
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_MSRV }}
+          cache-key: msrv
+      # Library only: dev-dependencies (jsonwebtoken, criterion) need a newer compiler.
+      - name: Check library (default features)
+        run: cargo check -p oxitoken --lib
+      - name: Check library (aws-lc-rs only)
+        run: cargo check -p oxitoken --lib --no-default-features --features aws-lc-rs
+      - name: Check library (openssl only)
+        run: cargo check -p oxitoken --lib --no-default-features --features openssl
+
+  examples-benches:
+    name: examples and benches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          cache-key: examples-benches
+      # Built, not run: minimal_encode_decode.rs signs a token with `exp: 0` and then
+      # validates expiry, so running it panics (see the doctests job).
+      - name: Build examples
+        run: cargo build -p oxitoken --examples
+      # The criterion benches require both backends. `check` skips codegen, so the
+      # `lto = "fat"` bench profile is not paid for.
+      - name: Check benches
+        run: cargo check -p oxitoken --benches --features openssl
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_NIGHTLY }}
+          components: llvm-tools-preview
+          cache-key: coverage
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+      - name: Test with coverage (both backends)
+        run: cargo llvm-cov nextest -p oxitoken --features openssl --profile ci
+      - name: Coverage report
+        run: cargo llvm-cov report --codecov --output-path coverage.json
+      - name: Coverage summary
+        run: |
+          {
+            echo '### Coverage'
+            echo '```'
+            cargo llvm-cov report
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Fork PRs and repos without the secret skip the uploads instead of failing.
+      - name: Check for Codecov token
+        id: codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: echo "enabled=${CODECOV_TOKEN:+true}" >> "$GITHUB_OUTPUT"
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && steps.codecov.outputs.enabled == 'true' }}
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/nextest/ci/junit.xml
+      - name: Upload coverage to Codecov
+        if: ${{ steps.codecov.outputs.enabled == 'true' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.json
+          fail_ci_if_error: false
+
+  deny:
+    name: cargo-deny (bans, licenses, sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny
+      # Advisories are checked weekly in canary.yml: new advisories appear without any
+      # change to this repository and should not block unrelated PRs.
+      - name: Check bans, licenses and sources
+        run: cargo deny check bans licenses sources
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [test, test-platforms, msrv, examples-benches, coverage, deny]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every gating job to have passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needs results: $RESULTS"
+          if [[ "$RESULTS" == *failure* || "$RESULTS" == *cancelled* ]]; then
+            exit 1
+          fi
+
+  # -------------------------------------------------------------- advisory
+  fmt:
+    name: rustfmt (advisory)
+    runs-on: ubuntu-latest
+    # Fails today only on import grouping in oxitoken/src/validation/async_pipeline.rs,
+    # the dead module behind the non-compiling `async` feature.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_NIGHTLY }}
+          components: rustfmt
+          cache: "false"
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+  clippy:
+    name: clippy (${{ matrix.name }}) (advisory)
+    runs-on: ubuntu-latest
+    # Fails today: 9 lint errors in the library (clippy::doc_markdown in README.md and
+    # doc comments, clippy::missing_const_for_fn, clippy::too_long_first_doc_paragraph).
+    # `clippy.toml` has no `doc-valid-idents` for OxiToken/OxiAuth/EdDSA. Test targets
+    # are not reached until the library lints clean.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            flags: ""
+          - name: aws-lc-rs only
+            flags: "--no-default-features --features aws-lc-rs"
+          - name: openssl only
+            flags: "--no-default-features --features openssl"
+          - name: both backends
+            flags: "--features openssl"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          components: clippy
+          cache-key: clippy-${{ matrix.name }}
+      - name: Clippy
+        env:
+          FLAGS: ${{ matrix.flags }}
+        run: |
+          read -ra flags <<< "$FLAGS"
+          cargo clippy -p oxitoken --lib --tests "${flags[@]}" -- -D warnings
+
+  doctests:
+    name: doctests (advisory)
+    runs-on: ubuntu-latest
+    # Fails today: the README example signs with `exp: 0` and then validates expiry
+    # (panics with Expired), and the AwsLcVerificationKey doctest in
+    # crypto/aws_lc/verify.rs has no `use` lines. nextest does not run doctests,
+    # which is why the llvm-cov workflow never caught these.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          cache-key: doctests
+      - name: Doctests
+        run: cargo test -p oxitoken --doc
+
+  rustdoc:
+    name: rustdoc (advisory)
+    runs-on: ubuntu-latest
+    # Fails today: 7 unresolved intra-doc links in oxitoken/src/error.rs
+    # (KeyProvider, VerificationKey, TokenValidator, ValidationPipeline).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: ${{ env.RUST_STABLE }}
+          cache-key: rustdoc
+      - name: Build docs
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc -p oxitoken --no-deps
+
+  # ---------------------------------------------------------- integrations
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Sonar needs full history for blame and new-code detection.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check for Sonar token
+        id: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: echo "enabled=${SONAR_TOKEN:+true}" >> "$GITHUB_OUTPUT"
+      - name: SonarCloud scan
+        if: steps.sonar.outputs.enabled == 'true'
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -1,0 +1,84 @@
+name: Canary
+
+# Not part of the PR gate. Surfaces breakage that arrives without any change to this
+# repository: new compiler/lint releases (`warnings = "deny"`), new dependency versions,
+# new RustSec advisories, and the slow `fips` build.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  latest:
+    name: latest stable + latest deps (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            flags: ""
+          - name: both backends
+            flags: "--features openssl"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Floating `stable`, deliberately not the pin used by ci.yml. No cache: the point
+      # is a clean build against the newest crates.
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: stable
+          cache: "false"
+      - name: Update dependencies
+        run: |
+          cargo update
+          git --no-pager diff --stat Cargo.lock
+      - name: Check
+        env:
+          FLAGS: ${{ matrix.flags }}
+        run: |
+          read -ra flags <<< "$FLAGS"
+          cargo check -p oxitoken --lib --tests "${flags[@]}"
+      - name: Test
+        env:
+          FLAGS: ${{ matrix.flags }}
+        run: |
+          read -ra flags <<< "$FLAGS"
+          cargo test -p oxitoken --lib --tests "${flags[@]}"
+
+  fips:
+    name: fips build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # aws-lc-fips-sys needs cmake, Go and Perl; all are preinstalled on ubuntu-latest.
+      - uses: ./.github/actions/setup-rust
+        with:
+          toolchain: stable
+          cache-key: fips
+      - name: Test (aws-lc-rs + fips)
+        run: cargo test -p oxitoken --lib --tests --no-default-features --features aws-lc-rs,fips
+
+  advisories:
+    name: cargo-deny advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny
+      - name: Check advisories
+        run: cargo deny check advisories
