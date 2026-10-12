@@ -1,5 +1,16 @@
 # OxiAuth Project
 
+[![ci](https://github.com/dsykes16/oxiauth/actions/workflows/ci.yml/badge.svg)](https://github.com/dsykes16/oxiauth/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/dsykes16/oxiauth/graph/badge.svg)](https://codecov.io/gh/dsykes16/oxiauth)
+[![crates.io](https://img.shields.io/crates/v/oxitoken.svg)](https://crates.io/crates/oxitoken/)
+[![docs.rs](https://img.shields.io/docsrs/oxitoken)](https://docs.rs/oxitoken/)
+[![deps.rs](https://deps.rs/repo/github/dsykes16/oxiauth/status.svg?path=oxitoken)](https://deps.rs/repo/github/dsykes16/oxiauth?path=oxitoken)
+[![msrv](https://img.shields.io/crates/msrv/oxitoken)](https://crates.io/crates/oxitoken/)
+[![quality gate](https://sonarcloud.io/api/project_badges/measure?project=dsykes16_oxiauth&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dsykes16_oxiauth)
+[![reliability](https://sonarcloud.io/api/project_badges/measure?project=dsykes16_oxiauth&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dsykes16_oxiauth)
+[![security](https://sonarcloud.io/api/project_badges/measure?project=dsykes16_oxiauth&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dsykes16_oxiauth)
+[![maintainability](https://sonarcloud.io/api/project_badges/measure?project=dsykes16_oxiauth&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dsykes16_oxiauth)
+
 OxiAuth - Rust Web Authentication
 
 ## OxiToken
