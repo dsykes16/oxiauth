@@ -1,0 +1,15 @@
+coverage:
+  range: "80..100"
+  status:
+    project:
+      default:
+        target: 80%
+    patch:
+      default:
+        target: 80%
+
+# Benchmark and example code is not part of the library's tested surface.
+ignore:
+  - "oxitoken/benches"
+  - "oxitoken/examples"
+  - "oxitoken-macros"
