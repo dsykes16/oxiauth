@@ -13,7 +13,11 @@ use aws_lc_rs::{
         ECDSA_P384_SHA384_FIXED,
         ECDSA_P521_SHA512_FIXED,
         ED25519,
+        ML_DSA_44_SIGNING,
+        ML_DSA_65_SIGNING,
+        ML_DSA_87_SIGNING,
         ParsedPublicKey,
+        PqdsaKeyPair,
         RSA_PKCS1_2048_8192_SHA256,
         RSA_PKCS1_2048_8192_SHA384,
         RSA_PKCS1_2048_8192_SHA512,
@@ -22,12 +26,6 @@ use aws_lc_rs::{
         RSA_PSS_2048_8192_SHA512,
         UnparsedPublicKey,
         VerificationAlgorithm,
-    },
-    unstable::signature::{
-        ML_DSA_44_SIGNING,
-        ML_DSA_65_SIGNING,
-        ML_DSA_87_SIGNING,
-        PqdsaKeyPair,
     },
 };
 use base64_simd::URL_SAFE_NO_PAD as b64;

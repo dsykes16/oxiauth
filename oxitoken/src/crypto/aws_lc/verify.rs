@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use aws_lc_rs::{
     hmac::{
         HMAC_SHA256,
@@ -21,22 +23,21 @@ use aws_lc_rs::{
         Ed25519KeyPair,
         Ed25519PublicKey,
         KeyPair,
-        ParsedPublicKey,
-        RSA_PKCS1_2048_8192_SHA256,
-        RSA_PKCS1_2048_8192_SHA384,
-        RSA_PKCS1_2048_8192_SHA512,
-        RSA_PSS_2048_8192_SHA256,
-        RSA_PSS_2048_8192_SHA384,
-        RSA_PSS_2048_8192_SHA512,
-    },
-    unstable::signature::{
         ML_DSA_44,
         ML_DSA_44_SIGNING,
         ML_DSA_65,
         ML_DSA_65_SIGNING,
         ML_DSA_87,
         ML_DSA_87_SIGNING,
+        ParsedPublicKey,
         PqdsaKeyPair,
+        RSA_PKCS1_2048_8192_SHA256,
+        RSA_PKCS1_2048_8192_SHA384,
+        RSA_PKCS1_2048_8192_SHA512,
+        RSA_PSS_2048_8192_SHA256,
+        RSA_PSS_2048_8192_SHA384,
+        RSA_PSS_2048_8192_SHA512,
+        VerificationAlgorithm,
     },
 };
 
@@ -62,35 +63,47 @@ impl From<HmacKey> for KeyType {
     }
 }
 
+/// Whether `kalg` is the verification algorithm `expected`.
+///
+/// [`ParsedPublicKey::algorithm`] only exposes a `dyn VerificationAlgorithm`, which can't be
+/// compared directly, so this recovers the concrete algorithm type before comparing by value.
+fn is_alg<A>(kalg: &dyn VerificationAlgorithm, expected: &A) -> bool
+where
+    A: VerificationAlgorithm + PartialEq,
+{
+    let kalg: &dyn Any = kalg;
+    kalg.downcast_ref::<A>() == Some(expected)
+}
+
 fn map_pkey_alg(key: &ParsedPublicKey) -> Option<Algorithm> {
     let kalg = key.algorithm();
-    if std::ptr::addr_eq(kalg, &raw const RSA_PKCS1_2048_8192_SHA256) {
+    if is_alg(kalg, &RSA_PKCS1_2048_8192_SHA256) {
         Some(Algorithm::RS256)
-    } else if std::ptr::addr_eq(kalg, &raw const RSA_PKCS1_2048_8192_SHA384) {
+    } else if is_alg(kalg, &RSA_PKCS1_2048_8192_SHA384) {
         Some(Algorithm::RS384)
-    } else if std::ptr::addr_eq(kalg, &raw const RSA_PKCS1_2048_8192_SHA512) {
+    } else if is_alg(kalg, &RSA_PKCS1_2048_8192_SHA512) {
         Some(Algorithm::RS512)
-    } else if std::ptr::addr_eq(kalg, &raw const RSA_PSS_2048_8192_SHA256) {
+    } else if is_alg(kalg, &RSA_PSS_2048_8192_SHA256) {
         Some(Algorithm::PS256)
-    } else if std::ptr::addr_eq(kalg, &raw const RSA_PSS_2048_8192_SHA384) {
+    } else if is_alg(kalg, &RSA_PSS_2048_8192_SHA384) {
         Some(Algorithm::PS384)
-    } else if std::ptr::addr_eq(kalg, &raw const RSA_PSS_2048_8192_SHA512) {
+    } else if is_alg(kalg, &RSA_PSS_2048_8192_SHA512) {
         Some(Algorithm::PS512)
-    } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P256_SHA256_FIXED) {
+    } else if is_alg(kalg, &ECDSA_P256_SHA256_FIXED) {
         Some(Algorithm::ES256)
-    } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P256K1_SHA256_FIXED) {
+    } else if is_alg(kalg, &ECDSA_P256K1_SHA256_FIXED) {
         Some(Algorithm::ES256K)
-    } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P384_SHA384_FIXED) {
+    } else if is_alg(kalg, &ECDSA_P384_SHA384_FIXED) {
         Some(Algorithm::ES384)
-    } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P521_SHA512_FIXED) {
+    } else if is_alg(kalg, &ECDSA_P521_SHA512_FIXED) {
         Some(Algorithm::ES512)
-    } else if std::ptr::addr_eq(kalg, &raw const ED25519) {
+    } else if is_alg(kalg, &ED25519) {
         Some(Algorithm::EdDSA)
-    } else if std::ptr::addr_eq(kalg, &raw const ML_DSA_44) {
+    } else if is_alg(kalg, &ML_DSA_44) {
         Some(Algorithm::MlDsa44)
-    } else if std::ptr::addr_eq(kalg, &raw const ML_DSA_65) {
+    } else if is_alg(kalg, &ML_DSA_65) {
         Some(Algorithm::MlDsa65)
-    } else if std::ptr::addr_eq(kalg, &raw const ML_DSA_87) {
+    } else if is_alg(kalg, &ML_DSA_87) {
         Some(Algorithm::MlDsa87)
     } else {
         None
@@ -195,13 +208,14 @@ impl TryFrom<HmacKey> for AwsLcVerificationKey {
 impl TryFrom<&EcdsaKeyPair> for AwsLcVerificationKey {
     type Error = JwtError;
     fn try_from(key: &EcdsaKeyPair) -> Result<Self, Self::Error> {
-        let alg = if key.algorithm().eq(&ECDSA_P256_SHA256_FIXED_SIGNING) {
+        let kalg = key.algorithm();
+        let alg = if kalg == &ECDSA_P256_SHA256_FIXED_SIGNING {
             Ok(&ECDSA_P256_SHA256_FIXED)
-        } else if key.algorithm().eq(&ECDSA_P256K1_SHA256_FIXED_SIGNING) {
+        } else if kalg == &ECDSA_P256K1_SHA256_FIXED_SIGNING {
             Ok(&ECDSA_P256K1_SHA256_FIXED)
-        } else if key.algorithm().eq(&ECDSA_P384_SHA384_FIXED_SIGNING) {
+        } else if kalg == &ECDSA_P384_SHA384_FIXED_SIGNING {
             Ok(&ECDSA_P384_SHA384_FIXED)
-        } else if key.algorithm().eq(&ECDSA_P521_SHA512_FIXED_SIGNING) {
+        } else if kalg == &ECDSA_P521_SHA512_FIXED_SIGNING {
             Ok(&ECDSA_P521_SHA512_FIXED)
         } else {
             Err(JwtError::UnsupportedAlgorithm)
@@ -216,11 +230,11 @@ impl TryFrom<&PqdsaKeyPair> for AwsLcVerificationKey {
     type Error = JwtError;
     fn try_from(key: &PqdsaKeyPair) -> Result<Self, Self::Error> {
         let kalg = key.algorithm();
-        let alg = if kalg.eq(&ML_DSA_44_SIGNING) {
+        let alg = if kalg == &ML_DSA_44_SIGNING {
             Ok(&ML_DSA_44)
-        } else if kalg.eq(&ML_DSA_65_SIGNING) {
+        } else if kalg == &ML_DSA_65_SIGNING {
             Ok(&ML_DSA_65)
-        } else if kalg.eq(&ML_DSA_87_SIGNING) {
+        } else if kalg == &ML_DSA_87_SIGNING {
             Ok(&ML_DSA_87)
         } else {
             // this is unreachable as of aws-lc-rs v1.14.1 as all currently supported Pqdsa algs are covered above
@@ -273,6 +287,7 @@ mod tests {
         rand::SystemRandom,
         rsa::KeySize,
         signature::{
+            ECDSA_P256_SHA256_ASN1,
             ECDSA_P256_SHA256_FIXED,
             ECDSA_P256_SHA256_FIXED_SIGNING,
             ECDSA_P256K1_SHA256_FIXED,
@@ -286,7 +301,14 @@ mod tests {
             EcdsaKeyPair,
             Ed25519KeyPair,
             KeyPair,
+            ML_DSA_44,
+            ML_DSA_44_SIGNING,
+            ML_DSA_65,
+            ML_DSA_65_SIGNING,
+            ML_DSA_87,
+            ML_DSA_87_SIGNING,
             ParsedPublicKey,
+            PqdsaKeyPair,
             RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY,
             RSA_PKCS1_2048_8192_SHA256,
             RSA_PKCS1_2048_8192_SHA384,
@@ -295,15 +317,6 @@ mod tests {
             RSA_PSS_2048_8192_SHA384,
             RSA_PSS_2048_8192_SHA512,
             RsaKeyPair,
-        },
-        unstable::signature::{
-            ML_DSA_44,
-            ML_DSA_44_SIGNING,
-            ML_DSA_65,
-            ML_DSA_65_SIGNING,
-            ML_DSA_87,
-            ML_DSA_87_SIGNING,
-            PqdsaKeyPair,
         },
     };
 
@@ -418,6 +431,16 @@ mod tests {
         let parsed_key = ParsedPublicKey::new(alg, key.public_key().as_ref()).unwrap();
         let key = AwsLcVerificationKey::try_from(parsed_key).unwrap();
         assert_eq!(key.alg().unwrap(), Algorithm::ES512);
+    }
+
+    #[test]
+    fn parsed_key_ecdsa_asn1_unsupported() {
+        // same curve and digest as ES256, but JWS requires fixed-length (R || S) signatures
+        let alg = &ECDSA_P256_SHA256_ASN1;
+        let key = EcdsaKeyPair::generate(&ECDSA_P256_SHA256_FIXED_SIGNING).unwrap();
+        let parsed_key = ParsedPublicKey::new(alg, key.public_key().as_ref()).unwrap();
+        let err = AwsLcVerificationKey::try_from(parsed_key).unwrap_err();
+        assert_eq!(err, JwtError::UnsupportedAlgorithm);
     }
 
     #[test]

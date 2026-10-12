@@ -20,8 +20,6 @@ use aws_lc_rs::{
         ECDSA_P521_SHA512_FIXED_SIGNING,
         EcdsaKeyPair,
         Ed25519KeyPair,
-    },
-    unstable::signature::{
         ML_DSA_44_SIGNING,
         ML_DSA_65_SIGNING,
         ML_DSA_87_SIGNING,

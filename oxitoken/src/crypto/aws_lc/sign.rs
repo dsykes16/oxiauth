@@ -16,6 +16,10 @@ use aws_lc_rs::{
         ECDSA_P521_SHA512_FIXED_SIGNING,
         EcdsaKeyPair,
         Ed25519KeyPair,
+        ML_DSA_44_SIGNING,
+        ML_DSA_65_SIGNING,
+        ML_DSA_87_SIGNING,
+        PqdsaKeyPair,
         RSA_PKCS1_SHA256,
         RSA_PKCS1_SHA384,
         RSA_PKCS1_SHA512,
@@ -24,12 +28,6 @@ use aws_lc_rs::{
         RSA_PSS_SHA512,
         RsaKeyPair,
         RsaSignatureEncoding,
-    },
-    unstable::signature::{
-        ML_DSA_44_SIGNING,
-        ML_DSA_65_SIGNING,
-        ML_DSA_87_SIGNING,
-        PqdsaKeyPair,
     },
 };
 
@@ -62,8 +60,7 @@ impl Signer for PqdsaKeyPair {
             Algorithm::MlDsa87 => Ok(&ML_DSA_87_SIGNING),
             _ => Err(JwtEncodingError::UnsupportedAlgorithm),
         }?;
-        let kalg = self.algorithm();
-        if kalg.eq(jalg) {
+        if self.algorithm() == jalg {
             Ok(())
         } else {
             Err(JwtEncodingError::WrongAlgorithm)
@@ -144,13 +141,11 @@ impl Signer for EcdsaKeyPair {
     type Error = Unspecified;
     fn siglen(&self) -> usize {
         let kalg = self.algorithm();
-        if std::ptr::addr_eq(kalg, &raw const ECDSA_P256_SHA256_FIXED_SIGNING)
-            || std::ptr::addr_eq(kalg, &raw const ECDSA_P256K1_SHA256_FIXED_SIGNING)
-        {
+        if kalg == &ECDSA_P256_SHA256_FIXED_SIGNING || kalg == &ECDSA_P256K1_SHA256_FIXED_SIGNING {
             64
-        } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P384_SHA384_FIXED_SIGNING) {
+        } else if kalg == &ECDSA_P384_SHA384_FIXED_SIGNING {
             96
-        } else if std::ptr::addr_eq(kalg, &raw const ECDSA_P521_SHA512_FIXED_SIGNING) {
+        } else if kalg == &ECDSA_P521_SHA512_FIXED_SIGNING {
             132
         } else {
             // SAFETY: the public [`encoding::encode`] function calls [`check_alg`] first, so this
@@ -160,37 +155,17 @@ impl Signer for EcdsaKeyPair {
     }
 
     fn check_alg(&self, algorithm: Algorithm) -> Result<(), JwtEncodingError<Self::Error>> {
-        let kalg = self.algorithm();
-        match algorithm {
-            Algorithm::ES256 => {
-                if std::ptr::addr_eq(kalg, &raw const ECDSA_P256_SHA256_FIXED_SIGNING) {
-                    Ok(())
-                } else {
-                    Err(JwtEncodingError::WrongAlgorithm)
-                }
-            }
-            Algorithm::ES256K => {
-                if std::ptr::addr_eq(kalg, &raw const ECDSA_P256K1_SHA256_FIXED_SIGNING) {
-                    Ok(())
-                } else {
-                    Err(JwtEncodingError::WrongAlgorithm)
-                }
-            }
-            Algorithm::ES384 => {
-                if std::ptr::addr_eq(kalg, &raw const ECDSA_P384_SHA384_FIXED_SIGNING) {
-                    Ok(())
-                } else {
-                    Err(JwtEncodingError::WrongAlgorithm)
-                }
-            }
-            Algorithm::ES512 => {
-                if std::ptr::addr_eq(kalg, &raw const ECDSA_P521_SHA512_FIXED_SIGNING) {
-                    Ok(())
-                } else {
-                    Err(JwtEncodingError::WrongAlgorithm)
-                }
-            }
+        let jalg = match algorithm {
+            Algorithm::ES256 => Ok(&ECDSA_P256_SHA256_FIXED_SIGNING),
+            Algorithm::ES256K => Ok(&ECDSA_P256K1_SHA256_FIXED_SIGNING),
+            Algorithm::ES384 => Ok(&ECDSA_P384_SHA384_FIXED_SIGNING),
+            Algorithm::ES512 => Ok(&ECDSA_P521_SHA512_FIXED_SIGNING),
             _ => Err(JwtEncodingError::UnsupportedAlgorithm),
+        }?;
+        if self.algorithm() == jalg {
+            Ok(())
+        } else {
+            Err(JwtEncodingError::WrongAlgorithm)
         }
     }
 
@@ -287,13 +262,11 @@ mod tests {
             ECDSA_P521_SHA512_FIXED_SIGNING,
             EcdsaKeyPair,
             Ed25519KeyPair,
-            RsaKeyPair,
-        },
-        unstable::signature::{
             ML_DSA_44_SIGNING,
             ML_DSA_65_SIGNING,
             ML_DSA_87_SIGNING,
             PqdsaKeyPair,
+            RsaKeyPair,
         },
     };
 
