@@ -83,6 +83,11 @@ Comparative benchmarks above were ran with `aws-lc-rs` backend for both `oxitoke
 ## Example
 
 ```rust
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
+
 use aws_lc_rs::signature::{
     ED25519,
     Ed25519KeyPair,
@@ -129,9 +134,11 @@ struct Claims {
 }
 impl Claims {
     fn new(iss: impl Into<String>) -> Self {
+        // expire one hour from now
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         Self {
             iss: iss.into(),
-            exp: 0,
+            exp: now.cast_signed() + 3600,
         }
     }
 }

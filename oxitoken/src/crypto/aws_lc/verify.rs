@@ -151,6 +151,20 @@ impl VerificationKey for HmacKey {
 /// # Examples
 ///
 /// ```rust
+///# use aws_lc_rs::{
+///#     rsa::KeySize,
+///#     signature::{
+///#         KeyPair,
+///#         ParsedPublicKey,
+///#         RSA_PKCS1_2048_8192_SHA256,
+///#         RsaKeyPair,
+///#     },
+///# };
+///# use oxitoken::{
+///#     Algorithm,
+///#     crypto::aws_lc::AwsLcVerificationKey,
+///#     validation::VerificationKey,
+///# };
 /// let key = RsaKeyPair::generate(KeySize::Rsa2048).unwrap();
 /// let alg = &RSA_PKCS1_2048_8192_SHA256;
 ///
