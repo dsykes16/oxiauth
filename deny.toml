@@ -1,0 +1,37 @@
+# cargo-deny configuration. PR gate runs `bans licenses sources` (ci.yml); `advisories`
+# runs weekly in canary.yml because new advisories appear without any code change.
+
+[graph]
+# Placeholder crate with no license/description; not published.
+exclude = ["oxitoken-proc-macros"]
+
+[advisories]
+version = 2
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "ISC",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Duplicate versions (e.g. syn 2 and 3 via dev-dependencies) are reported with long
+# dependency trees that bury real failures and cannot fail the check. Set to "warn"
+# to audit them by hand.
+multiple-versions = "allow"
+wildcards = "deny"
+# Path dependencies between workspace members legitimately have no version.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

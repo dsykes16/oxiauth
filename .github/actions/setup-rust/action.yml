@@ -1,0 +1,45 @@
+name: Set up Rust
+description: Install a pinned toolchain with rustup and restore the cargo/target cache.
+
+inputs:
+  toolchain:
+    description: Toolchain to install and make the default (e.g. 1.97.1, nightly-2025-11-21, stable).
+    required: true
+  components:
+    description: Comma-separated rustup components (e.g. clippy,rustfmt).
+    required: false
+    default: ""
+  cache:
+    description: Restore and save the cargo/target cache ("true" or "false").
+    required: false
+    default: "true"
+  cache-key:
+    description: Extra cache key so jobs with different feature sets or toolchains do not share a cache.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        COMPONENTS: ${{ inputs.components }}
+      run: |
+        args=(toolchain install "$TOOLCHAIN" --profile minimal --no-self-update)
+        if [[ -n "$COMPONENTS" ]]; then
+          args+=(--component "$COMPONENTS")
+        fi
+        rustup "${args[@]}"
+        rustup default "$TOOLCHAIN"
+        rustc --version --verbose
+        cargo --version
+
+    # Cargo.lock is committed, so the cache key follows it automatically.
+    - name: Restore cargo cache
+      if: inputs.cache == 'true'
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        key: ${{ inputs.cache-key }}
+        cache-on-failure: true
