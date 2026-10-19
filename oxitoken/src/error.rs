@@ -3,11 +3,11 @@ use thiserror::Error;
 /// Errors raised during JWT Decoding and Validation
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum JwtError {
-    /// Error raised by [`KeyProvider`] when a [`VerificationKey`] cannot be found
+    /// Error raised by [`KeyProvider`](crate::validation::KeyProvider) when a [`VerificationKey`](crate::validation::VerificationKey) cannot be found
     #[error("verification key not found in keystore")]
     VerificationKeyNotFound,
 
-    /// Error raised by [`VerificationKey`] when the signature is invalid
+    /// Error raised by [`VerificationKey`](crate::validation::VerificationKey) when the signature is invalid
     #[error("invalid signature")]
     InvalidSignature,
 
@@ -27,7 +27,7 @@ pub enum JwtError {
     #[error("jwt contained wrong number of dot-delimited sections")]
     InvalidSectionCount(#[from] SplitError),
 
-    /// Error raised when `alg` header field of JWT does not match [`VerificationKey::alg`]
+    /// Error raised when `alg` header field of JWT does not match [`VerificationKey::alg`](crate::validation::VerificationKey::alg)
     #[error("jwt 'alg' header field did not match algorithm verification was attempted with")]
     WrongAlgorithm,
 
@@ -63,7 +63,7 @@ pub enum JwtError {
     #[error("jwt 'iat' claim indicates token was issued in the future")]
     IssuedInFuture,
 
-    /// Generic error raised by any arbitrary [`TokenValidator`]
+    /// Generic error raised by any arbitrary [`TokenValidator`](crate::validation::TokenValidator)
     #[error("custom field validation error")]
     CustomValidationError(&'static str),
 
@@ -71,12 +71,12 @@ pub enum JwtError {
     #[error("validator does not support this algorithm")]
     UnsupportedAlgorithm,
 
-    /// Error raised when the crypto backend behind a given [`VerificationKey`] encounters an error
+    /// Error raised when the crypto backend behind a given [`VerificationKey`](crate::validation::VerificationKey) encounters an error
     /// during signature validation
     #[error("signature validation was unable to be performed with provided key")]
     KeyError,
 
-    /// Error raised when JWT is larger than the size limit specified for the [`ValidationPipeline`]
+    /// Error raised when JWT is larger than the size limit specified for the [`ValidationPipeline`](crate::validation::ValidationPipeline)
     #[error("jwt was above set size threshold")]
     OverSizeThreshold,
 }
