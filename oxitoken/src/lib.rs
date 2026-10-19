@@ -1,5 +1,5 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-#![doc = include_str!("../README.md")]
+#![cfg_attr(not(clippy), doc = include_str!("../README.md"))]
 
 /// Traits supporting implementation of custom JWT header structs
 /// and reference-implementations of common JWT standards.
@@ -291,6 +291,7 @@ mod tests {
         #[derive(Debug, serde::Serialize)]
         struct C;
         #[derive(Debug, Error)]
+        #[allow(clippy::empty_enums)]
         enum E {}
         struct K;
         impl Signer for K {

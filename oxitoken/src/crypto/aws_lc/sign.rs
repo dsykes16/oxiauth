@@ -39,7 +39,7 @@ use crate::{
     },
 };
 
-fn map_rsa_alg(algorithm: Algorithm) -> Option<&'static RsaSignatureEncoding> {
+const fn map_rsa_alg(algorithm: Algorithm) -> Option<&'static RsaSignatureEncoding> {
     match algorithm {
         Algorithm::RS256 => Some(&RSA_PKCS1_SHA256),
         Algorithm::PS256 => Some(&RSA_PSS_SHA256),
@@ -205,7 +205,7 @@ impl Signer for Ed25519KeyPair {
     }
 }
 
-fn map_hmac_alg<S>(algorithm: Algorithm) -> Result<HmacAlgorithm, JwtEncodingError<S::Error>>
+const fn map_hmac_alg<S>(algorithm: Algorithm) -> Result<HmacAlgorithm, JwtEncodingError<S::Error>>
 where
     S: Signer,
 {

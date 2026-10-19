@@ -420,13 +420,13 @@ fn hmac_pkey_rejected() {
     let key = PKey::hmac(&[b'a'; 32]).unwrap();
 
     // `alg` getter should return `None` since it is unsupported
-    assert!((&key).alg().is_none());
+    assert!(key.alg().is_none());
 
     // attempting to sign despite `alg` being `None` should err
     let mut jwt: String = "e30.e30".into();
-    let err = (&key).sign_jwt(Algorithm::HS256, &mut jwt).unwrap_err();
+    let err = key.sign_jwt(Algorithm::HS256, &mut jwt).unwrap_err();
     assert!(matches!(err, JwtEncodingError::UnsupportedAlgorithm));
 
-    let err = (&key).verify(jwt.as_bytes(), b"").unwrap_err();
+    let err = key.verify(jwt.as_bytes(), b"").unwrap_err();
     assert!(matches!(err, JwtError::UnsupportedAlgorithm));
 }

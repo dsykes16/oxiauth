@@ -141,10 +141,12 @@ impl VerificationKey for HmacKey {
     }
 }
 
-/// Wrapper around a [`ParsedPublicKey`] or [`HmacKey`] that parses the key algorithm
-/// to a JWT algorithm at initialization to permit raising unsupported algorithm errors
-/// as early in the process as possible and avoid the overhead of converting the raw key
-/// algorithm to a JWT algorithm with each verification operation.
+/// Wrapper around a [`ParsedPublicKey`] or [`HmacKey`].
+///
+/// Parses the key algorithm to a JWT algorithm at initialization to permit raising
+/// unsupported algorithm errors as early in the process as possible and avoid the
+/// overhead of converting the raw key algorithm to a JWT algorithm with each
+/// verification operation.
 ///
 /// # Examples
 ///
