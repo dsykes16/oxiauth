@@ -141,14 +141,30 @@ impl VerificationKey for HmacKey {
     }
 }
 
-/// Wrapper around a [`ParsedPublicKey`] or [`HmacKey`] that parses the key algorithm
-/// to a JWT algorithm at initialization to permit raising unsupported algorithm errors
-/// as early in the process as possible and avoid the overhead of converting the raw key
-/// algorithm to a JWT algorithm with each verification operation.
+/// Wrapper around a [`ParsedPublicKey`] or [`HmacKey`].
+///
+/// Parses the key algorithm to a JWT algorithm at initialization to permit raising
+/// unsupported algorithm errors as early in the process as possible and avoid the
+/// overhead of converting the raw key algorithm to a JWT algorithm with each
+/// verification operation.
 ///
 /// # Examples
 ///
 /// ```rust
+///# use aws_lc_rs::{
+///#     rsa::KeySize,
+///#     signature::{
+///#         KeyPair,
+///#         ParsedPublicKey,
+///#         RSA_PKCS1_2048_8192_SHA256,
+///#         RsaKeyPair,
+///#     },
+///# };
+///# use oxitoken::{
+///#     Algorithm,
+///#     crypto::aws_lc::AwsLcVerificationKey,
+///#     validation::VerificationKey,
+///# };
 /// let key = RsaKeyPair::generate(KeySize::Rsa2048).unwrap();
 /// let alg = &RSA_PKCS1_2048_8192_SHA256;
 ///

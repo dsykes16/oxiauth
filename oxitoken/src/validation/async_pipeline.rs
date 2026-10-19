@@ -1,13 +1,14 @@
-use futures::{
-    Future,
-    TryFutureExt,
-};
-use serde::Deserialize;
 use std::{
     borrow::Borrow,
     hash::Hash,
     pin::Pin,
 };
+
+use futures::{
+    Future,
+    TryFutureExt,
+};
+use serde::Deserialize;
 
 use crate::{
     claims::{

@@ -84,7 +84,7 @@ where
     WrongAlgorithm,
 
     /// Error raised when `alg` field of JWT header is unsupported by crypto backend
-    /// or `Signer` key family (e.g. attempting EdDSA sig w/ RSA keypair).
+    /// or `Signer` key family (e.g. attempting `EdDSA` sig w/ RSA keypair).
     #[error("signing key algorithm is not supported by crypto backend")]
     UnsupportedAlgorithm,
 

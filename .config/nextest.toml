@@ -1,0 +1,10 @@
+# Only used by CI (`--profile ci`); local `cargo nextest` / `cargo llvm-cov nextest`
+# runs keep the default profile.
+[profile.ci]
+fail-fast = false
+
+[profile.ci.junit]
+# Relative to the profile's output dir, i.e. target/nextest/ci/junit.xml (also under
+# `cargo llvm-cov nextest`, which writes it outside target/llvm-cov-target).
+# Uploaded to Codecov as test results by the coverage job.
+path = "junit.xml"
