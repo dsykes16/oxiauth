@@ -3,14 +3,21 @@ pub mod keystore;
 
 pub(crate) mod validator;
 
+#[cfg(feature = "async")]
+pub use async_pipeline::{
+    AsyncKeyProvider,
+    AsyncTokenValidator,
+    AsyncValidationPipeline,
+};
 pub use pipeline::ValidationPipeline;
 pub use validator::TokenValidator;
 
 mod pipeline;
 
 #[cfg(feature = "async")]
-// WARNING: async support is experimental
 mod async_pipeline;
+
+use std::sync::Arc;
 
 use crate::{
     Algorithm,
@@ -41,6 +48,26 @@ pub trait VerificationKey {
     /// This method MAY return a [`JwtError::KeyError`] when an issue with
     /// the underlying verification key is encountered.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JwtError>;
+}
+
+impl<K: VerificationKey + ?Sized> VerificationKey for &K {
+    fn alg(&self) -> Option<Algorithm> {
+        (**self).alg()
+    }
+
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JwtError> {
+        (**self).verify(message, signature)
+    }
+}
+
+impl<K: VerificationKey + ?Sized> VerificationKey for Arc<K> {
+    fn alg(&self) -> Option<Algorithm> {
+        (**self).alg()
+    }
+
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JwtError> {
+        (**self).verify(message, signature)
+    }
 }
 
 /// A [`KeyProvider`] which, given an unvalidated JWT's header and claims, can determine
