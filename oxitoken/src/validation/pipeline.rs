@@ -39,72 +39,141 @@ use crate::{
     },
 };
 
-pub struct ValidationPipelineBuilder<H, C, KP>
-where
-    KP: KeyProvider<H, C>,
-{
+/// A JWT that has been split, decoded and deserialized, but not yet verified.
+pub(super) struct DecodedToken<'t, H, C> {
+    split: SplitJwt<'t>,
+    decoded: DecodedJwt,
+    pub(super) header: H,
+    pub(super) claims: C,
+}
+
+/// Validation steps shared by the sync and async validation pipelines: everything
+/// except key resolution and async validators.
+pub(super) struct PipelineCore<H, C> {
     validators: Vec<Box<dyn TokenValidator<H, C> + Send + Sync>>,
-    key_provider: KP,
     size_limit: Option<usize>,
 }
-impl<H, C, KP> ValidationPipelineBuilder<H, C, KP>
+
+impl<H, C> PipelineCore<H, C> {
+    const fn new() -> Self {
+        Self {
+            validators: Vec::new(),
+            size_limit: None,
+        }
+    }
+}
+
+impl<H, C> PipelineCore<H, C>
 where
     for<'de> H: Deserialize<'de> + Alg,
     for<'de> C: Deserialize<'de>,
-    KP: KeyProvider<H, C> + Send + Sync + 'static,
 {
-    pub(crate) fn new(key_provider: KP) -> Self {
+    /// Enforces the size limit, then splits, decodes and deserializes `token`.
+    pub(super) fn decode<'t>(&self, token: &'t [u8]) -> Result<DecodedToken<'t, H, C>, JwtError> {
+        if let Some(size_limit) = self.size_limit
+            && token.len() > size_limit
+        {
+            return Err(JwtError::OverSizeThreshold);
+        }
+        let split = SplitJwt::try_from(token)?;
+        let decoded = DecodedJwt::try_from(&split)?;
+
+        let header = serde_json::from_slice::<H>(decoded.decoded_header())
+            .map_err(|_| JwtError::HeaderDeserialization)?;
+        let claims = serde_json::from_slice::<C>(decoded.decoded_claims())
+            .map_err(|_| JwtError::ClaimsDeserialization)?;
+
+        Ok(DecodedToken {
+            split,
+            decoded,
+            header,
+            claims,
+        })
+    }
+
+    /// Checks `alg` and the signature against `key`, then runs the validators in order.
+    pub(super) fn validate<K>(
+        &self,
+        token: &DecodedToken<'_, H, C>,
+        key: &K,
+    ) -> Result<(), JwtError>
+    where
+        K: VerificationKey + ?Sized,
+    {
+        // alg validation is non-negotiable per RFC-7519
+        if token.header.alg() != key.alg().ok_or(JwtError::UnsupportedAlgorithm)? {
+            return Err(JwtError::WrongAlgorithm);
+        }
+
+        // verify signature
+        key.verify(token.split.b64_message(), token.decoded.decoded_signature())?;
+
+        // run field validators
+        for v in &self.validators {
+            v.validate(&token.header, &token.claims)?;
+        }
+        Ok(())
+    }
+}
+
+/// Builder for a [`ValidationPipeline`], or for an `AsyncValidationPipeline` when
+/// the `async` feature is enabled.
+///
+/// `A` holds the async validators of an async pipeline; it is `()` for a
+/// [`ValidationPipeline`].
+pub struct ValidationPipelineBuilder<H, C, KP, A = ()> {
+    pub(super) core: PipelineCore<H, C>,
+    pub(super) key_provider: KP,
+    pub(super) async_validators: A,
+}
+
+impl<H, C, KP, A> ValidationPipelineBuilder<H, C, KP, A> {
+    pub(super) const fn with_parts(key_provider: KP, async_validators: A) -> Self {
         Self {
-            validators: Vec::new(),
+            core: PipelineCore::new(),
             key_provider,
-            size_limit: None,
+            async_validators,
         }
     }
 
     /// Caps accepted JWT size to `size_limit` bytes
     ///
-    /// JWTs above this size will return a [`JwtError::OverSizeLimit`]
+    /// JWTs above this size will return a [`JwtError::OverSizeThreshold`]
     pub const fn with_max_size(mut self, size_limit: usize) -> Self {
-        self.size_limit = Some(size_limit);
+        self.core.size_limit = Some(size_limit);
         self
     }
 
     /// Rejects JWTs where the `iss` field does not match the given `iss` value.
-    pub fn with_issuer_validator(mut self, iss: impl Into<String>) -> Self
+    pub fn with_issuer_validator(self, iss: impl Into<String>) -> Self
     where
         C: Iss,
     {
-        self.validators
-            .push(Box::new(IssuerValidator::new(iss.into())));
-        self
+        self.with(IssuerValidator::new(iss.into()))
     }
 
     /// Rejects JWTs that do not contain the given `aud` value in their `aud` list.
-    pub fn with_audience_validator(mut self, aud: impl Into<String>) -> Self
+    pub fn with_audience_validator(self, aud: impl Into<String>) -> Self
     where
         C: Aud,
     {
-        self.validators
-            .push(Box::new(AudienceValidator::new(aud.into())));
-        self
+        self.with(AudienceValidator::new(aud.into()))
     }
 
     /// Rejects JWTs with an `nbf` time greater than the current system time.
-    pub fn with_not_before_validator(mut self) -> Self
+    pub fn with_not_before_validator(self) -> Self
     where
         C: Nbf,
     {
-        self.validators.push(Box::new(NotBeforeValidator::new()));
-        self
+        self.with(NotBeforeValidator::new())
     }
 
     /// Rejects JWTs with an `exp` time less than the current system time.
-    pub fn with_expiration_validator(mut self) -> Self
+    pub fn with_expiration_validator(self) -> Self
     where
         C: Exp,
     {
-        self.validators.push(Box::new(ExpirationValidator::new()));
-        self
+        self.with(ExpirationValidator::new())
     }
 
     /// Rejects JWTs with an `iat` time greater than the current system time.
@@ -114,58 +183,67 @@ where
     /// A more realistic usage of the `iat` field is in combination with the `jti` field
     /// to assist with cache management (i.e. if `iat` time is less then most recent
     /// `jti` revocation cache update; token can be immediately processed).
-    pub fn with_issued_at_validator(mut self) -> Self
+    pub fn with_issued_at_validator(self) -> Self
     where
         C: Iat,
     {
-        self.validators.push(Box::new(IssuedAtValidator::new()));
-        self
+        self.with(IssuedAtValidator::new())
     }
 
     /// Rejects JWTs with a `typ` not in the `accepted_types` list
-    pub fn with_type_validator<T>(mut self, accepted_types: impl IntoIterator<Item = T>) -> Self
+    pub fn with_type_validator<T>(self, accepted_types: impl IntoIterator<Item = T>) -> Self
     where
         H: Typ,
         T: Hash + Eq + Borrow<H::Type> + Send + Sync + 'static,
         H::Type: Hash + Eq,
     {
-        self.validators
-            .push(Box::new(TypeValidator::new(accepted_types)));
-        self
+        self.with(TypeValidator::new(accepted_types))
     }
 
     /// Rejects JWTs with a `sub` not in the `accepted_subscribers` list
     pub fn with_subscriber_validator(
-        mut self,
+        self,
         accepted_subscribers: impl IntoIterator<Item = impl Into<String>>,
     ) -> Self
     where
         C: Sub,
     {
-        self.validators.push(Box::new(SubscriberValidator::new(
-            accepted_subscribers.into_iter(),
-        )));
-        self
+        self.with(SubscriberValidator::new(accepted_subscribers.into_iter()))
     }
 
     /// Adds a custom validator to the validation pipeline.
     /// This method may be chained to add multiple custom validators.
     pub fn with(mut self, validator: impl TokenValidator<H, C> + Send + Sync + 'static) -> Self {
-        self.validators.push(Box::new(validator));
+        self.core.validators.push(Box::new(validator));
         self
+    }
+}
+
+impl<H, C, KP> ValidationPipelineBuilder<H, C, KP>
+where
+    for<'de> H: Deserialize<'de> + Alg,
+    for<'de> C: Deserialize<'de>,
+    KP: KeyProvider<H, C> + Send + Sync + 'static,
+{
+    pub(crate) const fn new(key_provider: KP) -> Self {
+        Self::with_parts(key_provider, ())
     }
 
     /// Finalizes the validation pipeline construction.
     pub fn build(self) -> ValidationPipeline<H, C, KP> {
-        ValidationPipeline::new(self.validators, self.key_provider, self.size_limit)
+        let Self {
+            core,
+            key_provider,
+            async_validators: (),
+        } = self;
+        ValidationPipeline { core, key_provider }
     }
 }
 
 /// Validation pipeline that, once built, can decode and validate compact-encoded JWTs
 pub struct ValidationPipeline<H, C, KP> {
-    validators: Vec<Box<dyn TokenValidator<H, C> + Send + Sync>>,
+    core: PipelineCore<H, C>,
     key_provider: KP,
-    size_limit: Option<usize>,
 }
 
 impl<H, C, KP> ValidationPipeline<H, C, KP>
@@ -175,20 +253,8 @@ where
     KP: KeyProvider<H, C> + Send + Sync + 'static,
 {
     // Returns a new [`ValidationPipelineBuilder`].
-    pub fn builder(key_provider: KP) -> ValidationPipelineBuilder<H, C, KP> {
+    pub const fn builder(key_provider: KP) -> ValidationPipelineBuilder<H, C, KP> {
         ValidationPipelineBuilder::new(key_provider)
-    }
-
-    pub(crate) fn new(
-        validators: Vec<Box<dyn TokenValidator<H, C> + Send + Sync>>,
-        key_provider: KP,
-        size_limit: Option<usize>,
-    ) -> Self {
-        Self {
-            validators,
-            key_provider,
-            size_limit,
-        }
     }
 
     /// Verifies a JWT using the validation pipeline's key provider and validators.
@@ -216,41 +282,16 @@ where
     /// - Any other [`JwtError`] raised by a [`TokenValidator`] which is included
     ///   in the validation pipeline
     pub fn verify(&self, token: &[u8]) -> Result<(H, C), JwtError> {
-        if let Some(size_limit) = self.size_limit
-            && token.len() > size_limit
-        {
-            return Err(JwtError::OverSizeThreshold);
-        }
-        let split = SplitJwt::try_from(token)?;
-        let decoded = DecodedJwt::try_from(&split)?;
-
-        let header = serde_json::from_slice::<H>(decoded.decoded_header())
-            .map_err(|_| JwtError::HeaderDeserialization)?;
-        let claims = serde_json::from_slice::<C>(decoded.decoded_claims())
-            .map_err(|_| JwtError::ClaimsDeserialization)?;
+        let token = self.core.decode(token)?;
 
         // try to get a matching key from the resolver
-        let key = self.key_provider.resolve_key(&header, &claims)?;
+        let key = self
+            .key_provider
+            .resolve_key(&token.header, &token.claims)?;
 
-        // alg validation is non-negotiable per RFC-7519
-        if header.alg() != key.alg().ok_or(JwtError::UnsupportedAlgorithm)? {
-            return Err(JwtError::WrongAlgorithm);
-        }
+        self.core.validate(&token, key)?;
 
-        // validate signature
-        key.verify(split.b64_message(), decoded.decoded_signature())?;
-
-        // run field validators
-        self.run_validators(&header, &claims)?;
-
-        Ok((header, claims))
-    }
-
-    fn run_validators(&self, header: &H, claims: &C) -> Result<(), JwtError> {
-        for v in &self.validators {
-            v.validate(header, claims)?;
-        }
-        Ok(())
+        Ok((token.header, token.claims))
     }
 }
 

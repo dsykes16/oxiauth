@@ -31,12 +31,12 @@ pub enum JwtError {
     #[error("jwt 'alg' header field did not match algorithm verification was attempted with")]
     WrongAlgorithm,
 
-    /// Error raised when `aud` field of JWT header does not contain expected value
-    #[error("jwt 'aud' header did not contain expected audience")]
+    /// Error raised when `aud` (Audience) field of JWT claims does not contain expected value
+    #[error("jwt 'aud' claim did not contain expected audience")]
     WrongAudience,
 
-    /// Error raised when `iss` (Issuer) field of JWT header does not contain expected value
-    #[error("jwt 'iss' header did not contain expected issuer")]
+    /// Error raised when `iss` (Issuer) field of JWT claims does not match expected value
+    #[error("jwt 'iss' claim did not match expected issuer")]
     WrongIssuer,
 
     /// Error raised when `scope` field of JWT claims does not contain expected value(s)

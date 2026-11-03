@@ -281,8 +281,19 @@ ID, part of which determines which trust-domain the keys must be fetched
 from. In that case, we could add the constraint `C: Sub` and have access
 to the `claims.sub()` getter to make our key selection.
 
-The `AsyncValidationPipeline` accepts an `AsyncKeyProvider`, which is
-functionally identical aside from the `resolve_key` method being async.
+With the `async` feature enabled, the `AsyncValidationPipeline` is available and
+accepts an `AsyncKeyProvider`, which mirrors `KeyProvider` except that
+`resolve_key` is async, and the key it returns may either borrow from the
+provider (`&'a K`) or be owned (e.g. an `Arc<K>` handed out by a shared JWKS
+cache). `StaticKeyProvider` and `LocalKeystore` implement both traits, so they
+work with either pipeline.
+
+The `AsyncValidationPipeline` builder offers the same validators as the
+`ValidationPipeline` builder, plus `.with_async(...)` for
+`AsyncTokenValidator`s such as a revocation lookup. Async validators run
+concurrently, and only after the signature has been verified and every
+synchronous validator has passed to mitigate the risk of a DoS attack using
+forged tokens (e.g. on a revocation check backend).
 
 ### Custom Validators
 

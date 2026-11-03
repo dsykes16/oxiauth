@@ -28,13 +28,7 @@ env:
   # validation/pipeline.rs; 1.87.0 fails there. Bump by hand.
   RUST_MSRV: "1.88.0"
 
-# Jobs fall in two groups:
-#   gating   - must pass; aggregated by `ci-ok`, which is the required status check.
-#   advisory - fail on `main` today (see the comment on each) and are not part of `ci-ok`.
-#              They run with `continue-on-error`, so a failure shows as an annotation on
-#              an otherwise green run. Remove `continue-on-error` once the cause is fixed.
 jobs:
-  # ---------------------------------------------------------------- gating
   test:
     name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
@@ -50,6 +44,8 @@ jobs:
             flags: "--no-default-features --features openssl"
           - name: both backends
             flags: "--features openssl"
+          - name: async
+            flags: "--features openssl,async"
           - name: no backend
             flags: "--no-default-features"
     steps:
@@ -113,6 +109,8 @@ jobs:
         run: cargo check -p oxitoken --lib --no-default-features --features aws-lc-rs
       - name: Check library (openssl only)
         run: cargo check -p oxitoken --lib --no-default-features --features openssl
+      - name: Check library (async)
+        run: cargo check -p oxitoken --lib --features async
 
   examples-benches:
     name: examples and benches
@@ -149,8 +147,8 @@ jobs:
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-nextest,cargo-llvm-cov
-      - name: Test with coverage (both backends)
-        run: cargo llvm-cov nextest -p oxitoken --features openssl --profile ci
+      - name: Test with coverage (both backends + async)
+        run: cargo llvm-cov nextest -p oxitoken --features openssl,async --profile ci
       - name: Coverage report
         run: cargo llvm-cov report --codecov --output-path coverage.json
       - name: Coverage summary
@@ -214,13 +212,9 @@ jobs:
             exit 1
           fi
 
-  # -------------------------------------------------------------- advisory
   fmt:
-    name: rustfmt (advisory)
+    name: rustfmt
     runs-on: ubuntu-latest
-    # Fails today only on import grouping in oxitoken/src/validation/async_pipeline.rs,
-    # the dead module behind the non-compiling `async` feature.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -234,13 +228,8 @@ jobs:
         run: cargo fmt --all --check
 
   clippy:
-    name: clippy (${{ matrix.name }}) (advisory)
+    name: clippy (${{ matrix.name }})
     runs-on: ubuntu-latest
-    # Fails today: 9 lint errors in the library (clippy::doc_markdown in README.md and
-    # doc comments, clippy::missing_const_for_fn, clippy::too_long_first_doc_paragraph).
-    # `clippy.toml` has no `doc-valid-idents` for OxiToken/OxiAuth/EdDSA. Test targets
-    # are not reached until the library lints clean.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -253,6 +242,8 @@ jobs:
             flags: "--no-default-features --features openssl"
           - name: both backends
             flags: "--features openssl"
+          - name: async
+            flags: "--features openssl,async"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -270,13 +261,8 @@ jobs:
           cargo clippy -p oxitoken --lib --tests "${flags[@]}" -- -D warnings
 
   doctests:
-    name: doctests (advisory)
+    name: doctests
     runs-on: ubuntu-latest
-    # Fails today: the README example signs with `exp: 0` and then validates expiry
-    # (panics with Expired), and the AwsLcVerificationKey doctest in
-    # crypto/aws_lc/verify.rs has no `use` lines. nextest does not run doctests,
-    # which is why the llvm-cov workflow never caught these.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -286,14 +272,11 @@ jobs:
           toolchain: ${{ env.RUST_STABLE }}
           cache-key: doctests
       - name: Doctests
-        run: cargo test -p oxitoken --doc
+        run: cargo test -p oxitoken --doc --features async
 
   rustdoc:
-    name: rustdoc (advisory)
+    name: rustdoc
     runs-on: ubuntu-latest
-    # Fails today: 7 unresolved intra-doc links in oxitoken/src/error.rs
-    # (KeyProvider, VerificationKey, TokenValidator, ValidationPipeline).
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -305,7 +288,7 @@ jobs:
       - name: Build docs
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc -p oxitoken --no-deps
+        run: cargo doc -p oxitoken --no-deps --features async
 
   # ---------------------------------------------------------- integrations
   sonar:

@@ -12,6 +12,7 @@ workspace = true
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+features = ["async"]
 
 [features]
 default = ["aws-lc-rs", "postquantum"]

@@ -259,11 +259,6 @@ mod tests {
     #[test]
     fn encode_bad_claims() {
         struct BadClaims;
-        impl Alg for BadClaims {
-            fn alg(&self) -> Algorithm {
-                Algorithm::default()
-            }
-        }
         impl serde::Serialize for BadClaims {
             fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
             where
