@@ -30,7 +30,7 @@ pub enum Algorithm {
     /// `ECDSA` using `secp256k1` curve and `SHA-256` digest
     ES256K,
 
-    /// `ECDSA` using `P-384` curve and `SHA-284` digest
+    /// `ECDSA` using `P-384` curve and `SHA-384` digest
     ES384,
 
     /// `ECDSA` using `P-521` curve and `SHA-512` digest
@@ -45,16 +45,16 @@ pub enum Algorithm {
     /// `RSASSA-PSS` using `SHA-512` and MGF1 with SHA-512
     PS512,
 
-    /// `EdDSA` using Ed25519 curve
+    /// `EdDSA` using Ed448 curve
     Ed448,
 
-    // EdDSA will likely be deprecated and replaced by Ed25519 (same alg, new name)
-    // Ref: https://www.ietf.org/archive/id/draft-ietf-jose-fully-specified-algorithms-13.html#name-fully-specified-jose-algori
+    // EdDSA is deprecated in favor of the fully-specified Ed25519 (same alg, new name)
+    // Ref: https://datatracker.ietf.org/doc/html/rfc9864#section-2.2
     /// `EdDSA` using Ed25519 curve
     EdDSA,
 
     // post-quantum algs
-    // Ref: https://datatracker.ietf.org/doc/html/draft-ietf-cose-dilithium-10#name-new-jose-algorithms
+    // Ref: https://datatracker.ietf.org/doc/html/rfc9964#section-8.1.4
     /// `ML-DSA-44` as described in US NIST FIPS 204
     #[serde(rename = "ML-DSA-44")]
     MlDsa44,
