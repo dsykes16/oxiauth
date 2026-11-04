@@ -1,11 +1,19 @@
 [package]
 name = "oxitoken"
-authors = ["Dwayne Sykes <github-public@sykes.pw>"]
+version = "0.2.0"
 description = "Fastest and most secure JWT encoding/validation library for Rust. Fully supports custom header/claims structs, an extendable validation pipeline, and is crypto-backend agnostic (built-in support for aws-lc-rs and openssl)."
+keywords = ["jwt", "jws", "jose", "token", "auth"]
 categories = ["authentication", "cryptography", "security", "web-programming"]
-version = "0.1.1"
-edition = "2024"
-license = "Apache-2.0 WITH LLVM-exception"
+readme = "README.md"
+documentation = "https://docs.rs/oxitoken"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+# Bench fixtures (private keys and a 15 MiB adversarial token), the mdbook sources,
+# and benchmark output are of no use to downstream users; keep them out of the crate.
+exclude = ["benches/", "docs/", "enc_bench.json"]
 
 [lints]
 workspace = true

@@ -2,6 +2,14 @@
 resolver = "3"
 members = ["oxitoken", "oxitoken-macros"]
 
+[workspace.package]
+authors = ["Dwayne Sykes <github-public@sykes.pw>"]
+edition = "2024"
+license = "Apache-2.0 WITH LLVM-exception"
+repository = "https://github.com/dsykes16/oxiauth"
+# Keep in sync with RUST_MSRV in .github/workflows/ci.yml.
+rust-version = "1.88.0"
+
 [profile.bench]
 opt-level = 3
 codegen-units = 1
