@@ -1,6 +1,6 @@
 [package]
 name = "oxitoken"
-version = "0.1.1"
+version = "0.2.0"
 description = "Fastest and most secure JWT encoding/validation library for Rust. Fully supports custom header/claims structs, an extendable validation pipeline, and is crypto-backend agnostic (built-in support for aws-lc-rs and openssl)."
 keywords = ["jwt", "jws", "jose", "token", "auth"]
 categories = ["authentication", "cryptography", "security", "web-programming"]
