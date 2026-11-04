@@ -24,8 +24,8 @@ env:
   # Nightly is needed for rustfmt options in oxitoken/.rustfmt.toml and for
   # `coverage(off)`. Bump by hand (same pin as local development).
   RUST_NIGHTLY: nightly-2025-11-21
-  # Measured floor for the library build: let-chains (stable in 1.88) are used in
-  # validation/pipeline.rs; 1.87.0 fails there. Bump by hand.
+  # let-chains (stable in 1.88) are used in # validation/pipeline.rs
+  # Update `rust-version` in the root Cargo.toml if changing.
   RUST_MSRV: "1.88.0"
 
 jobs:
