@@ -20,7 +20,7 @@ env:
   # `warnings = "deny"` + clippy pedantic/nursery means a new rustc/clippy release can
   # break the build, so toolchains are pinned. canary.yml tracks floating stable weekly.
   # renovate: datasource=github-releases depName=rust-lang/rust
-  RUST_STABLE: "1.97.1"
+  RUST_STABLE: "1.99.1"
   # Nightly is needed for rustfmt options in oxitoken/.rustfmt.toml and for
   # `coverage(off)`. Bump by hand (same pin as local development).
   RUST_NIGHTLY: nightly-2025-11-21
