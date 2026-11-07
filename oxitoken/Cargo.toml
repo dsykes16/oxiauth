@@ -57,7 +57,7 @@ openssl = { version = "0.10.74", optional = true }
 # used in benches to compare against base64-simd
 base64 = "0.22.1"
 # benchmark framework
-criterion = "0.7.0"
+criterion = "0.8.0"
 # used in examples
 serde_with = "3.15.0"
 # used for comparative benchmarks and as a third-party verifier in integration tests
