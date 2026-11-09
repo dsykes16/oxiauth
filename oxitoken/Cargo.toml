@@ -55,7 +55,7 @@ openssl = { version = "0.10.74", optional = true }
 
 [dev-dependencies]
 # used in benches to compare against base64-simd
-base64 = "0.22.1"
+base64 = "0.23.0"
 # benchmark framework
 criterion = "0.7.0"
 # used in examples

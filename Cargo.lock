@@ -896,7 +896,7 @@ name = "oxitoken"
 version = "0.2.0"
 dependencies = [
  "aws-lc-rs",
- "base64 0.22.1",
+ "base64 0.23.1",
  "base64-simd",
  "criterion",
  "futures",
